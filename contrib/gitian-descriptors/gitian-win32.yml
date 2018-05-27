@@ -1,74 +1,59 @@
 ---
-name: "ppcoin"
+name: "solidcash"
 suites:
-- "lucid"
+- "precise"
 architectures:
 - "i386"
+- "amd64"
 packages: 
-- "mingw32"
+- "libdb4.8++-dev"
+- "qt4-qmake"
+- "libqt4-dev"
+- "libboost-system-dev"
+- "libboost-filesystem-dev"
+- "libboost-program-options-dev"
+- "libboost-thread-dev"
+- "libssl-dev"
 - "git-core"
 - "unzip"
-- "nsis"
-- "faketime"
+- "pkg-config"
+- "libpng12-dev"
 reference_datetime: "2011-01-30 00:00:00"
 remotes:
-- "url": "https://github.com/ppcoin/ppcoin.git"
-  "dir": "ppcoin"
+- "url": "https://github.com/babeltrade/solidcash.git"
+  "dir": "solidcash"
 files:
-- "qt-win32-4.7.4-gitian.zip"
-- "boost-win32-1.47.0-gitian.zip"
-- "ppcoin-deps-0.0.1.zip"
+- "miniupnpc-1.9.20140401.tar.gz"
+- "qrencode-3.4.3.tar.bz2"
 script: |
+  INSTDIR="$HOME/install"
+  export LIBRARY_PATH="$INSTDIR/lib"
+  # Integrity Check
+  echo "d02670112125300f7a3d61421714d99105edd90190bf12542d16785f16f017aa  miniupnpc-1.9.20140401.tar.gz"   | sha256sum -c
+  echo "dfd71487513c871bad485806bfd1fdb304dedc84d2b01a8fb8e0940b50597a98  qrencode-3.4.3.tar.bz2" | sha256sum -c
+
   #
-  mkdir $HOME/qt
-  cd $HOME/qt
-  unzip ../build/qt-win32-4.7.4-gitian.zip
-  cd $HOME/build/
-  export PATH=$PATH:$HOME/qt/bin/
-  #
-  mkdir boost_1_47_0
-  cd boost_1_47_0
-  mkdir -p stage/lib
-  unzip ../boost-win32-1.47.0-gitian.zip
-  cd bin/$GBUILD_BITS
-  for lib in *; do
-    i586-mingw32msvc-ar rc ../../stage/lib/libboost_${lib}-mt-s.a $lib/*.o
-    i586-mingw32msvc-ranlib ../../stage/lib/libboost_${lib}-mt-s.a
-  done
-  cd ../..
-  mv include/boost .
+  tar xzf miniupnpc-1.9.20140401.tar.gz
+  cd miniupnpc-1.9.20140401
+  INSTALLPREFIX=$INSTDIR make $MAKEOPTS install
   cd ..
   #
-  unzip ppcoin-deps-0.0.1.zip
+  tar xjf qrencode-3.4.3.tar.bz2
+  cd qrencode-3.4.3
+  ./configure --prefix=$INSTDIR --enable-static --disable-shared
+  make $MAKEOPTS install
+  cd ..
   #
-  find -type f | xargs touch --date="$REFERENCE_DATETIME"
-  #
-  cd ppcoin
+  cd solidcash
   mkdir -p $OUTDIR/src
   git archive HEAD | tar -x -C $OUTDIR/src
-  cp $OUTDIR/src/doc/README_windows.txt $OUTDIR/readme.txt
-  cp $OUTDIR/src/COPYING $OUTDIR/license.txt
-  export LD_PRELOAD=/usr/lib/faketime/libfaketime.so.1
-  export FAKETIME=$REFERENCE_DATETIME
-  export TZ=UTC
-  $HOME/qt/src/bin/qmake -spec unsupported/win32-g++-cross MINIUPNPC_LIB_PATH=$HOME/build/miniupnpc MINIUPNPC_INCLUDE_PATH=$HOME/build/ BDB_LIB_PATH=$HOME/build/db-4.8.30.NC/build_unix BDB_INCLUDE_PATH=$HOME/build/db-4.8.30.NC/build_unix BOOST_LIB_PATH=$HOME/build/boost_1_47_0/stage/lib BOOST_INCLUDE_PATH=$HOME/build/boost_1_47_0 BOOST_LIB_SUFFIX=-mt-s BOOST_THREAD_LIB_SUFFIX=_win32-mt-s OPENSSL_LIB_PATH=$HOME/build/openssl-1.0.1b OPENSSL_INCLUDE_PATH=$HOME/build/openssl-1.0.1b/include QRENCODE_LIB_PATH=$HOME/build/qrencode-3.2.0/.libs QRENCODE_INCLUDE_PATH=$HOME/build/qrencode-3.2.0 USE_QRCODE=1 INCLUDEPATH=$HOME/build DEFINES=BOOST_THREAD_USE_LIB BITCOIN_NEED_QT_PLUGINS=1 QMAKE_LRELEASE=lrelease QMAKE_CXXFLAGS=-frandom-seed=ppcoin QMAKE_LFLAGS=-frandom-seed=ppcoin USE_BUILD_INFO=1
-  make $MAKEOPTS
-  cp release/ppcoin-qt.exe $OUTDIR/
-  #
+  cp $OUTDIR/src/doc/README.md $OUTDIR
+  cp $OUTDIR/src/COPYING $OUTDIR
   cd src
-  export LD_PRELOAD=/usr/lib/faketime/libfaketime.so.1
-  export FAKETIME=$REFERENCE_DATETIME
-  export TZ=UTC
-  make -f makefile.linux-mingw $MAKEOPTS DEPSDIR=$HOME/build ppcoind.exe USE_UPNP=1 DEBUGFLAGS="-frandom-seed=ppcoin"
-  i586-mingw32msvc-strip ppcoind.exe
-  mkdir $OUTDIR/daemon
-  cp ppcoind.exe $OUTDIR/daemon
+  make -f makefile.unix STATIC=1 OPENSSL_INCLUDE_PATH="$INSTDIR/include" OPENSSL_LIB_PATH="$INSTDIR/lib" $MAKEOPTS solidcashd USE_UPNP=0 DEBUGFLAGS= USE_SSE2=1
+  mkdir -p $OUTDIR/bin/$GBUILD_BITS
+  install -s solidcashd $OUTDIR/bin/$GBUILD_BITS
   cd ..
-  mkdir nsis
-  git archive HEAD | tar -x -C nsis
-  cd nsis/src
-  mkdir ../release
-  cp ../../release/* ../release/
-  cp ../../src/*.exe .
-  makensis ../share/setup.nsi
-  cp ../share/ppcoin-*-win32-setup.exe $OUTDIR/
+  qmake INCLUDEPATH="$INSTDIR/include" LIBS="-L$INSTDIR/lib" RELEASE=1 USE_QRCODE=1 USE_SSE2=1
+  make $MAKEOPTS
+  install Solidcash-qt $OUTDIR/bin/$GBUILD_BITS
